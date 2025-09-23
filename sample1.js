@@ -2,9 +2,8 @@
 (function () {
 	//به این لینک دست نزنید
 	const ALLOWED_DOMAIN = "https://rtlr.ir/";
-	
-	// طراح گرامی به این صورت لینک صفحه تکی محصول را قرار دهید
-	const REDIRECT_URL = "https://www.rtl-theme.com/anvogue-html-template/";
+	//به این لینک دست نزنید
+	const REDIRECT_URL = "https://www.rtl-theme.com/category/template-html/";
 	
 	const COUNTDOWN_SECONDS = 10;
 
