@@ -1,32 +1,94 @@
-
+<script>
 (function () {
-	//به این لینک دست نزنید
-	const ALLOWED_DOMAIN = "https://rtlr.ir/";
-	//به این لینک دست نزنید
-	const REDIRECT_URL = "https://www.rtl-theme.com/category/template-html/";
 	
-	const COUNTDOWN_SECONDS = 10;
+  const ALLOWED = [
+    { type: 'host', value: 'rtlr.ir' },      
 
-	if (window.top === window.self) return;
+    { type: 'url',  value: 'https://rtlr.ir/' }    
+  ];
+  
+  const REDIRECT_URL = 'https://www.rtl-theme.com/category/template-html/';
+  
+  const COUNTDOWN_SECONDS = 10;
+  const OVERLAY_ID = '__embed_block_overlay_v1';
+  const DEBUG = false;
 
-	let topHostname = null;
-	try {
-		topHostname = window.location.ancestorOrigins[0];
-	} catch (e) {
-		topHostname = null;
-	}
-	const allowed = (function () {
-		if (!topHostname) return false;
-		if (topHostname == 'https://rtlr.ir') return true;
-		return false;
-	})();
+  function log(...args){ if (DEBUG) console.log(...args); }
 
-	if (allowed) return;
+ 
+  if (window.top === window.self) {
+    log('not in iframe → exit');
+    return;
+  }
 
-	const overlay = document.createElement("div");
-	overlay.setAttribute("aria-hidden", "false");
-	Object.assign(overlay.style, {
-		position: "fixed",
+  
+  let parentHost = null;
+  let parentHref = null;
+  try {
+    parentHost = window.top.location.hostname;
+    parentHref = window.top.location.href;
+    log('top:', parentHost, parentHref);
+  } catch (e) {
+    log('no access to window.top, fallback to referrer', e);
+    if (document.referrer) {
+      try {
+        const u = new URL(document.referrer);
+        parentHost = u.hostname;
+        parentHref = u.href;
+        log('referrer:', parentHost, parentHref);
+      } catch (err) {
+        log('referrer parse failed', err);
+      }
+    }
+  }
+
+  function isAllowedHost(host, allowedHost) {
+    if (!host) return false;
+    host = host.replace(/^www\./i, '');
+    allowedHost = allowedHost.replace(/^www\./i, '');
+    return host === allowedHost || host.endsWith('.' + allowedHost);
+  }
+
+
+  let allowed = false;
+  for (const a of ALLOWED) {
+    if (a.type === 'host') {
+      if (isAllowedHost(parentHost, a.value)) { allowed = true; break; }
+    } else if (a.type === 'url') {
+      try {
+        const parsed = new URL(a.value);
+        if (parentHref) {
+         
+          if (parentHref === a.value || parentHref.startsWith(a.value + '/') || parentHref.startsWith(a.value + '?') || parentHref.startsWith(a.value + '#')) {
+            allowed = true; break;
+          }
+        }
+       
+        if (parentHost && isAllowedHost(parentHost, parsed.hostname)) {
+          if (!parsed.pathname || parsed.pathname === '/') { allowed = true; break; }
+          if (parentHref) {
+            try {
+              const p = new URL(parentHref);
+              if (p.pathname.startsWith(parsed.pathname)) { allowed = true; break; }
+            } catch (err) {}
+          }
+        }
+      } catch (e) {}
+    }
+  }
+
+  if (allowed) {
+    log('parent is allowed → exit');
+    return;
+  }
+
+ 
+  function showOverlay() {
+    if (document.getElementById(OVERLAY_ID)) return; 
+    const overlay = document.createElement('div');
+    overlay.id = OVERLAY_ID;
+    Object.assign(overlay.style, {
+        position: "fixed",
 		inset: "0",
 		background: "rgba(0,0,0,1)",
 		display: "flex",
@@ -34,10 +96,10 @@
 		justifyContent: "center",
 		zIndex: 2147483647,
 		fontFamily: "sans-serif"
-	});
+    });
 
-	const modal = document.createElement("div");
-	Object.assign(modal.style, {
+    const modal = document.createElement('div');
+    Object.assign(modal.style, {
 		maxWidth: "520px",
 		width: "90%",
 		background: "#fff",
@@ -46,10 +108,10 @@
 		borderRadius: "12px",
 		boxShadow: "0 10px 30px rgba(0,0,0,0.3)",
 		textAlign: "center"
-	});
+    });
 
 
-modal.innerHTML = `
+	modal.innerHTML = `
 	<div style="
 		width: 100%;
 		display: flex;
@@ -70,53 +132,45 @@ modal.innerHTML = `
 		همین حالا کلیک کنید !
 		</button>
 	</div>
-`;
+	`;
 
-	overlay.appendChild(modal);
-	document.documentElement.appendChild(overlay);
+    overlay.appendChild(modal);
+    const parentEl = document.body || document.documentElement;
+    parentEl.appendChild(overlay);
 
-	document.body.style.pointerEvents = "none";
-	modal.style.pointerEvents = "auto";
+    document.documentElement.style.pointerEvents = 'none';
+    modal.style.pointerEvents = 'auto';
 
-	const countdownText = modal.querySelector("#countdownText");
-	const goNowBtn = modal.querySelector("#goNowBtn");
+    const countdownText = modal.querySelector('#countdownText');
+    const goNowBtn = modal.querySelector('#goNowBtn');
+    let remaining = COUNTDOWN_SECONDS;
+    const updateText = () => countdownText.textContent = `شما در ${remaining} ثانیه به  rtl-theme.com منتقل خواهید شد.`;
+    updateText();
 
-	let remaining = COUNTDOWN_SECONDS;
-	const updateText = () => {
-		countdownText.textContent = `شما در ${remaining} ثانیه به  rtl-theme.com منتقل خواهید شد.`;
-	};
-	updateText();
+    goNowBtn.addEventListener('click', redirectToAllowed);
 
-	goNowBtn.addEventListener("click", () => {
-		redirectToAllowed();
-	});
+    const timer = setInterval(() => {
+      remaining -= 1;
+      if (remaining <= 0) {
+        clearInterval(timer);
+        redirectToAllowed();
+      } else updateText();
+    }, 1000);
 
-	const timer = setInterval(() => {
-		remaining -= 1;
-		if (remaining <= 0) {
-			clearInterval(timer);
-			redirectToAllowed();
-		} else {
-			updateText();
-		}
-	}, 1000);
+    function redirectToAllowed() {
+      clearInterval(timer);
+      try { window.top.location.href = REDIRECT_URL; return; } catch (e) {}
+      try { window.location.href = REDIRECT_URL; return; } catch (e) { cleanup(); console.error('redirect failed', e); }
+    }
 
-	function redirectToAllowed() {
-		try {
-			window.top.location.href = REDIRECT_URL;
-		} catch (e) {
-			try {
-				window.location.href = REDIRECT_URL;
-			} catch (err) {
-				cleanup();
-				console.error("Redirect failed:", err);
-			}
-		}
-	}
+    function cleanup() {
+      if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
+      document.documentElement.style.pointerEvents = '';
+    }
+  }
 
-	function cleanup() {
-		clearInterval(timer);
-		if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
-		document.body.style.pointerEvents = "";
-	}
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', showOverlay);
+  else showOverlay();
+
 })();
+</script>
