@@ -1,4 +1,3 @@
-<script>
 (function () {
 	
   const ALLOWED = [
@@ -173,4 +172,4 @@
   else showOverlay();
 
 })();
-</script>
+
